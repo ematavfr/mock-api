@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mysql-data-import
+spec:
+  template:
+    spec:
+      containers:
+      - name: mysql-import
+        image: registry.redhat.io/rhel8/mysql-80:latest
+        command: 
+        - /bin/bash
+        - -c
+        - |
+          echo "Starting import..."
+          mysql -h mysql.test-storage.svc \
+                -u "$MYSQL_USER" \
+                -p"$MYSQL_PASSWORD" \
+                "$MYSQL_DATABASE" < /data/torez.sql
+          if [ $? -eq 0 ]; then
+            echo "Import completed successfully"
+          else
+            echo "Import failed"
+            exit 1
+          fi
+        env:
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql
+              key: database-user
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql
+              key: database-password
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mysql
+              key: database-name
+        volumeMounts:
+        - name: import-script
+          mountPath: /data
+      volumes:
+      - name: import-script
+        configMap:
+          name: mysql-import-script
+      restartPolicy: Never
+  backoffLimit: 2
